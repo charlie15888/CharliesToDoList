@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>three states · task keeper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            background: #0f0f1a;
+            color: #eef2ff;
+            padding: 2rem;
+        }
+
+        .kanban {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .add-task {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        #newTaskInput {
+            padding: 0.75rem 1rem;
+            width: 280px;
+            border-radius: 2rem;
+            border: 1px solid #334155;
+            background: #1e1e2f;
+            color: white;
+            font-size: 1rem;
+        }
+
+        button {
+            background: #4a3b7c;
+            border: none;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #6b53b3;
+            transform: translateY(-2px);
+        }
+
+        .board {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .column {
+            flex: 1;
+            min-width: 260px;
+            background: rgba(30, 30, 47, 0.6);
+            backdrop-filter: blur(4px);
+            border-radius: 1.5rem;
+            padding: 1.25rem;
+            border: 1px solid #2d3a5e;
+        }
+
+        .column h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.25rem;
+            text-align: center;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-height: 200px;
+        }
+
+        .task-card {
+            background: #262538;
+            border-radius: 1rem;
+            padding: 0.85rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            border-left: 4px solid #9f7aea;
+        }
+
+        .task-text {
+            flex: 1;
+            word-break: break-word;
+            cursor: pointer;
+        }
+
+        .task-text[contenteditable="true"] {
+            background: #3a2e62;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            outline: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .task-btn {
+            background: none;
+            border: none;
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 0.3rem 0.5rem;
+            border-radius: 0.5rem;
+        }
+
+        .task-btn:hover {
+            background: #3b325a;
+            transform: none;
+        }
+
+        .delete-btn {
+            color: #ffaaaa;
+        }
+    </style>
+</head>
+<body>
+    <main class="kanban">
+        <header>
+            <h1>🕯️ Charlie's ToDo List · slow rebuild</h1>
+            <div class="add-task">
+                <input type="text" id="newTaskInput" placeholder="what needs doing?">
+                <button id="addTaskBtn">+ add task</button>
+            </div>
+        </header>
+
+        <div class="board">
+            <div class="column" data-status="todo">
+                <h2>📝 to do</h2>
+                <div class="task-list" id="todoList"></div>
+            </div>
+
+            <div class="column" data-status="progress">
+                <h2>⚡ in progress</h2>
+                <div class="task-list" id="progressList"></div>
+            </div>
+
+            <div class="column" data-status="done">
+                <h2>✅ done</h2>
+                <div class="task-list" id="doneList"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Data structure: each task is an object
+        let tasks = [];
+
+        // Load from localStorage
+        if (localStorage.getItem('threeStateTasks')) {
+            tasks = JSON.parse(localStorage.getItem('threeStateTasks'));
+        }
+
+        // DOM elements
+        const todoListEl = document.getElementById('todoList');
+        const progressListEl = document.getElementById('progressList');
+        const doneListEl = document.getElementById('doneList');
+        const addBtn = document.getElementById('addTaskBtn');
+        const newInput = document.getElementById('newTaskInput');
+
+        // Helper: generate short ID
+        function generateId() {
+            return Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+        }
+
+        // Save to localStorage
+        function saveTasks() {
+            localStorage.setItem('threeStateTasks', JSON.stringify(tasks));
+        }
+
+        // Render all columns from the tasks array
+        function render() {
+            // Clear containers
+            todoListEl.innerHTML = '';
+            progressListEl.innerHTML = '';
+            doneListEl.innerHTML = '';
+
+            tasks.forEach(task => {
+                const taskCard = createTaskCard(task);
+                if (task.status === 'todo') {
+                    todoListEl.appendChild(taskCard);
+                } else if (task.status === 'progress') {
+                    progressListEl.appendChild(taskCard);
+                } else if (task.status === 'done') {
+                    doneListEl.appendChild(taskCard);
+                }
+            });
+        }
+
+        // Create a single task card with buttons
+        function createTaskCard(task) {
+            const div = document.createElement('div');
+            div.className = 'task-card';
+            div.dataset.id = task.id;
+
+            // Task text (editable on double-click)
+            const textSpan = document.createElement('span');
+            textSpan.className = 'task-text';
+            textSpan.textContent = task.text;
+            textSpan.setAttribute('contenteditable', 'false');
+            
+            // Double-click to edit
+            textSpan.addEventListener('dblclick', (e) => {
+                const isEditing = textSpan.getAttribute('contenteditable') === 'true';
+                if (isEditing) return;
+                textSpan.setAttribute('contenteditable', 'true');
+                textSpan.focus();
+            });
+
+            // Save edit when focus leaves
+            textSpan.addEventListener('blur', () => {
+                if (textSpan.getAttribute('contenteditable') === 'true') {
+                    const newText = textSpan.textContent.trim();
+                    if (newText !== '') {
+                        task.text = newText;
+                        saveTasks();
+                        render();
+                    } else {
+                        textSpan.textContent = task.text;
+                        textSpan.setAttribute('contenteditable', 'false');
+                    }
+                }
+            });
+
+            // Enter key to save
+            textSpan.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    textSpan.blur();
+                }
+            });
+
+            // Button container
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'button-group';
+
+            // Move left button (←)
+            if (task.status !== 'todo') {
+                const leftBtn = document.createElement('button');
+                leftBtn.textContent = '←';
+                leftBtn.className = 'task-btn';
+                leftBtn.title = 'move left';
+                leftBtn.addEventListener('click', () => {
+                    if (task.status === 'progress') task.status = 'todo';
+                    else if (task.status === 'done') task.status = 'progress';
+                    saveTasks();
+                    render();
+                });
+                btnGroup.appendChild(leftBtn);
+            }
+
+            // Move right button (→)
+            if (task.status !== 'done') {
+                const rightBtn = document.createElement('button');
+                rightBtn.textContent = '→';
+                rightBtn.className = 'task-btn';
+                rightBtn.title = 'move right';
+                rightBtn.addEventListener('click', () => {
+                    if (task.status === 'todo') task.status = 'progress';
+                    else if (task.status === 'progress') task.status = 'done';
+                    saveTasks();
+                    render();
+                });
+                btnGroup.appendChild(rightBtn);
+            }
+
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '🗑️';
+            deleteBtn.className = 'task-btn delete-btn';
+            deleteBtn.addEventListener('click', () => {
+                tasks = tasks.filter(t => t.id !== task.id);
+                saveTasks();
+                render();
+            });
+            btnGroup.appendChild(deleteBtn);
+
+            div.appendChild(textSpan);
+            div.appendChild(btnGroup);
+            return div;
+        }
+
+        // Add new task
+        function addNewTask() {
+            const text = newInput.value.trim();
+            if (text === '') {
+                alert('write something, ghost');
+                return;
+            }
+            const newTask = {
+                id: generateId(),
+                text: text,
+                status: 'todo'
+            };
+            tasks.push(newTask);
+            saveTasks();
+            render();
+            newInput.value = '';
+            newInput.focus();
+        }
+
+        addBtn.addEventListener('click', addNewTask);
+        newInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addNewTask();
+        });
+
+        // Initial render
+        render();
+    </script>
+</body>
+</html>
